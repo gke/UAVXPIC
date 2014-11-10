@@ -1,0 +1,42 @@
+// Accelerometers
+// LIS3LV02DQ Inertial Sensor (Accelerometer)
+//  Ax=> Y + right
+//	Ay=> Z + up
+//	Az=> X + back
+
+#define ACCSIGN_X	+	
+#define ACCSIGN_Y	-
+#define ACCSIGN_Z	+	
+
+// Gyros
+
+// Coordinates are NOT right hand cartesian for LEGACY reasons
+// and the desire to keep the current parameters sets!!
+
+//	+P roll right
+//	+Q pitch up
+//	+R yaw clockwise
+
+// Controls 
+//  Aileron + roll right
+//	Elevator + pitch up
+//	Rudder + yaw anti-clockwise
+
+
+// IDG300
+// 3.3V Reference +-500 Deg/Sec
+// 0.4882815 Deg/Sec/LSB 
+//	+ roll right
+//	+ pitch up
+//	+ yaw clockwise
+
+// ADRSX300 Yaw
+// 5V Reference +-300 Deg/Sec
+// 0.2926875 Deg/Sec/LSB 
+//	+ roll left
+//	+ pitch down
+//	+ yaw clockwise
+
+// ADXRS150
+// 5V Reference +-150 Deg/Sec
+// 0.146484375 Deg/Sec/LSB

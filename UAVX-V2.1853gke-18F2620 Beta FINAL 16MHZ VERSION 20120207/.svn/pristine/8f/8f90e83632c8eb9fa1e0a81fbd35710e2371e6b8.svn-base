@@ -1,0 +1,247 @@
+// ===============================================================================================
+// =                                UAVX Quadrocopter Controller                                 =
+// =                           Copyright (c) 2008 by Prof. Greg Egan                             =
+// =                 Original V3.15 Copyright (c) 2007 Ing. Wolfgang Mahringer                   =
+// =                     http://code.google.com/p/uavp-mods/ http://uavp.ch                      =
+// ===============================================================================================
+
+//    This is part of UAVX.
+
+//    UAVX is free software: you can redistribute it and/or modify it under the terms of the GNU 
+//    General Public License as published by the Free Software Foundation, either version 3 of the 
+//    License, or (at your option) any later version.
+
+//    UAVX is distributed in the hope that it will be useful,but WITHOUT ANY WARRANTY; without
+//    even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+//    See the GNU General Public License for more details.
+
+//    You should have received a copy of the GNU General Public License along with this program.  
+//    If not, see http://www.gnu.org/licenses/
+
+void OutSignals(void);
+
+#if ( defined QUADROCOPTER ) | ( defined VTCOPTER )
+	#define MOTOR_MASK 0b00001111
+	#define SERVO_MASK 0b00110000
+#else
+	#define MOTOR_MASK 0b00000111
+	#define SERVO_MASK 0b00111000
+#endif
+
+void OutSignals(void)
+{	// The PW pulses are in two parts these being a 1mS preamble followed by a 0-1mS part. 
+	// Interrupts are enabled during the first part which uses TMR0.  TMR0 is monitored until 
+	// there is just sufficient time for one remaining interrupt latency before disabling 
+	// interrupts.  We do this because there appears to be no atomic method of detecting the 
+	// remaining time AND conditionally disabling the interrupt.
+ 
+	static i16u SaveTimer0;
+	static uint24 SaveClockmS;
+	static int8 ServoUpdate;
+
+	if ( !F.MotorsArmed )
+		StopMotors();
+
+	#if ( defined SIMULATE | defined TESTING )
+
+	MixAndLimitMotors();
+	MixAndLimitCam();
+
+	#else
+
+	// Save TMR0 and reset
+	DisableInterrupts;
+	SaveClockmS = MilliSec;
+	GetTimer0;
+	SaveTimer0.u16 = Timer0.u16;
+	FastWriteTimer0(TMR0_1MS);
+
+	// dead timing code to reduce pre-pulse to 1mS - caution
+	Delay10TCYx(12); // 2.5uS per click 
+
+	EnableInterrupts;
+
+	if ( P[ESCType] == ESCPPM )
+	{
+		PORTB |= MOTOR_MASK;
+
+		_asm
+		MOVLB	0					
+		MOVLW	MOTOR_MASK
+		MOVWF	SHADOWB,1
+		_endasm
+
+		MixAndLimitMotors();
+		MixAndLimitCam();
+
+		PW0 = PWLimit(PW[K1]);
+		PW1 = PWLimit(PW[K2]);
+		PW2 = PWLimit(PW[K3]);
+		PW3 = PWLimit(PW[K4]);	
+		PW4 = PWLimit(PW[K5]);
+		PW5 = PWLimit(PW[K6]);
+
+		SyncToTimer0AndDisableInterrupts();
+
+		if( ServoUpdate <=0 )	// driver cam servos only every 2nd pulse
+		{
+			PORTB |= (MOTOR_MASK | SERVO_MASK);
+			_asm
+			MOVLB	0							// select Bank0
+			MOVLW	(MOTOR_MASK | SERVO_MASK)	// turn on all motors
+			MOVWF	SHADOWB,1
+			_endasm	
+		}
+		else
+		{
+			Delay1TCY(); 
+			Delay1TCY(); 
+			Delay1TCY(); 
+			Delay1TCY(); 
+			Delay1TCY(); 
+			Delay1TCY();
+		}
+	
+		_asm
+		MOVLB	0							// select Bank0
+OS005:
+		MOVF	SHADOWB,0,1	
+		MOVWF	PORTB,0
+		ANDLW	MOTOR_MASK		
+
+		BZ		OS006
+			
+		DECFSZ	PW0,1,1				
+		GOTO	OS007
+					
+		BCF		SHADOWB,0,1
+OS007:
+		DECFSZ	PW1,1,1		
+		GOTO	OS008
+					
+		BCF		SHADOWB,1,1
+OS008:
+		DECFSZ	PW2,1,1
+		GOTO	OS009
+					
+		BCF		SHADOWB,2,1
+OS009:
+		DECFSZ	PW3,1,1	
+		GOTO	OS010
+						
+		BCF		SHADOWB,3,1	
+OS010:
+		_endasm
+
+	//	Delay1TCY(); 
+	//	Delay1TCY(); 
+	//	Delay1TCY();  
+
+		_asm				
+		GOTO	OS005
+OS006:
+		_endasm
+		
+		EnableInterrupts;
+		SyncToTimer0AndDisableInterrupts();	
+	} 
+	else
+	{ // I2C ESCs
+
+		if( ServoUpdate <= 0 )	// driver cam servos only every 2nd pulse
+		{
+			PORTB |= SERVO_MASK;
+
+			_asm
+			MOVLB	0					// select Bank0
+			MOVLW	SERVO_MASK			// turn on servoes
+			MOVWF	SHADOWB,1
+			_endasm	
+		}
+		else
+		{
+			Delay1TCY(); 
+			Delay1TCY(); 
+			Delay1TCY(); 
+			Delay1TCY(); 
+			Delay1TCY(); 
+			Delay1TCY();
+		}
+
+		MixAndLimitMotors();
+		MixAndLimitCam();
+
+		DoI2CESCs();
+	}
+
+	if ( ServoUpdate <= 0 )
+	{
+		_asm
+		MOVLB	0
+OS001:
+		MOVF	SHADOWB,0,1	
+		MOVWF	PORTB,0
+		ANDLW	SERVO_MASK
+		
+		BZ		OS002	
+	
+		DECFSZ	PW4,1,1
+		GOTO	OS003
+
+		BCF		SHADOWB,4,1	
+OS003:
+		DECFSZ	PW5,1,1
+		GOTO	OS004
+	
+		BCF		SHADOWB,5,1
+OS004:
+		DECFSZ	PW3,1,1
+		GOTO	OS0011
+	
+		BCF		SHADOWB,3,1
+OS0011:
+		_endasm
+	
+		Delay1TCY();	
+		Delay1TCY();
+	
+		_asm	
+		GOTO	OS001
+OS002:
+		_endasm
+
+		EnableInterrupts;
+		SyncToTimer0AndDisableInterrupts();
+	}
+
+	FastWriteTimer0(SaveTimer0.u16);
+
+	// add in period mS Clock was disabled - this is tending to advance the clock too far!
+	if ( P[ESCType] == ESCPPM )
+		if ( ServoUpdate <=0 )
+			MilliSec = SaveClockmS + 3;
+		else
+			MilliSec = SaveClockmS + 2;
+	else
+		if ( ServoUpdate <=0 )
+			MilliSec = SaveClockmS + 2;
+		else
+			MilliSec = SaveClockmS;
+
+//	INTCONbits.TMR0IE = true;
+	EnableInterrupts;
+
+	if ( ServoUpdate <=0 )
+		ServoUpdate = ServoInterval;
+	else
+		ServoUpdate--;
+	
+	#endif // !(SIMULATE | TESTING)
+
+} // OutSignals
+
+
+
+
+
+
