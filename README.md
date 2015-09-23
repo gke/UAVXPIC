@@ -6,3 +6,5 @@ Multicopter and fixed wing flight controller originally based on UAVP. Uses PIC1
 For occasional revisions released post 2015 use UAVXArm tools.
 
 Mainly for historical/legacy interest.
+
+See wiki folder.
