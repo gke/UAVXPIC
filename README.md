@@ -8,3 +8,7 @@ For occasional revisions released post 2015 use UAVXArm tools.
 Mainly for historical/legacy interest.
 
 See wiki folder.
+
+Original Google Project Pages are at:
+
+  * https://code.google.com/p/uavp-mods/
