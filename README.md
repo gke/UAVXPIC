@@ -9,6 +9,4 @@ Mainly for historical/legacy interest.
 
 See wiki folder.
 
-Original Google Project Pages are at:
-
-  * https://code.google.com/p/uavp-mods/
+Original Google Project Pages are Norwegian Blue!
